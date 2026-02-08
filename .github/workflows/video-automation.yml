@@ -1,0 +1,240 @@
+name: 🎬 Création Vidéo Automatique
+
+on:
+  schedule:
+    # Tous les jours à 10h00 UTC
+    - cron: '0 10 * * *'
+  workflow_dispatch:  # Permet lancement manuel
+
+jobs:
+  create-and-publish-video:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: 📦 Install dependencies
+        run: |
+          pip install google-generativeai
+          pip install moviepy
+          pip install requests
+          pip install google-auth google-auth-oauthlib google-auth-httplib2
+          pip install google-api-python-client
+      
+      - name: 🤖 Generate Video Script with Gemini (FREE)
+        id: generate_script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python << 'EOF'
+          import google.generativeai as genai
+          import json
+          import os
+          
+          # Configuration Gemini (GRATUIT)
+          genai.configure(api_key=os.environ['GEMINI_API_KEY'])
+          model = genai.GenerativeModel('gemini-pro')
+          
+          # Générer le script
+          prompt = """
+          Génère un script de vidéo éducative virale de 35 secondes.
+          Sujet : Technologie fascinante ou fait scientifique incroyable
+          
+          Retourne UNIQUEMENT un JSON valide :
+          {
+            "titre": "Titre accrocheur max 60 caractères",
+            "script": "Le script complet à lire (35 secondes)",
+            "description": "Description YouTube avec mots-clés SEO",
+            "tags": "tag1, tag2, tag3, tag4, tag5",
+            "hashtags": "#tech #science #education"
+          }
+          """
+          
+          response = model.generate_content(prompt)
+          script_data = response.text
+          
+          # Nettoyer et parser le JSON
+          script_data = script_data.replace('```json', '').replace('```', '').strip()
+          data = json.loads(script_data)
+          
+          # Sauvegarder dans un fichier
+          with open('script.json', 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+          
+          # Outputs pour GitHub Actions
+          print(f"::set-output name=titre::{data['titre']}")
+          print(f"::set-output name=script::{data['script']}")
+          
+          print("✅ Script généré avec succès!")
+          EOF
+      
+      - name: 🎬 Create Video with MoviePy (FREE)
+        run: |
+          python << 'EOF'
+          from moviepy.editor import *
+          import json
+          
+          # Charger le script
+          with open('script.json', 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          
+          script_text = data['script']
+          
+          # Créer une vidéo simple avec texte
+          # Fond noir
+          background = ColorClip(size=(1920, 1080), color=(0, 0, 0), duration=35)
+          
+          # Texte principal
+          txt_clip = TextClip(
+              script_text,
+              fontsize=50,
+              color='white',
+              font='Arial-Bold',
+              size=(1600, None),
+              method='caption',
+              align='center'
+          ).set_position('center').set_duration(35)
+          
+          # Titre en haut
+          title_clip = TextClip(
+              data['titre'],
+              fontsize=70,
+              color='yellow',
+              font='Arial-Bold',
+              size=(1600, None),
+              method='caption',
+              align='center'
+          ).set_position(('center', 100)).set_duration(5)
+          
+          # Composer la vidéo
+          video = CompositeVideoClip([background, txt_clip, title_clip])
+          
+          # Exporter
+          video.write_videofile(
+              'video_output.mp4',
+              fps=24,
+              codec='libx264',
+              audio=False
+          )
+          
+          print("✅ Vidéo créée avec succès!")
+          EOF
+      
+      - name: ☁️ Upload to Google Drive (FREE)
+        env:
+          GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+        run: |
+          python << 'EOF'
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+          import json
+          import os
+          from datetime import datetime
+          
+          # Credentials Google Drive
+          credentials_info = json.loads(os.environ['GDRIVE_CREDENTIALS'])
+          credentials = service_account.Credentials.from_service_account_info(
+              credentials_info,
+              scopes=['https://www.googleapis.com/auth/drive.file']
+          )
+          
+          # Service Drive
+          service = build('drive', 'v3', credentials=credentials)
+          
+          # Upload
+          timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+          file_metadata = {
+              'name': f'video_auto_{timestamp}.mp4',
+              'mimeType': 'video/mp4'
+          }
+          
+          media = MediaFileUpload('video_output.mp4', mimetype='video/mp4', resumable=True)
+          
+          file = service.files().create(
+              body=file_metadata,
+              media_body=media,
+              fields='id,webViewLink'
+          ).execute()
+          
+          print(f"✅ Vidéo uploadée sur Google Drive: {file.get('webViewLink')}")
+          print(f"::set-output name=drive_link::{file.get('webViewLink')}")
+          EOF
+      
+      - name: 📺 Upload to YouTube (FREE)
+        env:
+          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
+        run: |
+          python << 'EOF'
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+          import json
+          import os
+          
+          # Charger le script pour métadonnées
+          with open('script.json', 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          
+          # Credentials YouTube
+          credentials_info = json.loads(os.environ['YOUTUBE_CREDENTIALS'])
+          credentials = service_account.Credentials.from_service_account_info(
+              credentials_info,
+              scopes=['https://www.googleapis.com/auth/youtube.upload']
+          )
+          
+          # Service YouTube
+          youtube = build('youtube', 'v3', credentials=credentials)
+          
+          # Métadonnées vidéo
+          body = {
+              'snippet': {
+                  'title': data['titre'],
+                  'description': f"{data['description']}\n\n{data['hashtags']}\n\n🤖 Vidéo générée automatiquement par IA",
+                  'tags': data['tags'].split(', '),
+                  'categoryId': '28'  # Science & Technology
+              },
+              'status': {
+                  'privacyStatus': 'public',  # ou 'unlisted' pour tester
+                  'selfDeclaredMadeForKids': False
+              }
+          }
+          
+          # Upload
+          media = MediaFileUpload('video_output.mp4', chunksize=-1, resumable=True)
+          
+          request = youtube.videos().insert(
+              part='snippet,status',
+              body=body,
+              media_body=media
+          )
+          
+          response = request.execute()
+          
+          video_id = response['id']
+          video_url = f"https://www.youtube.com/watch?v={video_id}"
+          
+          print(f"✅ Vidéo publiée sur YouTube: {video_url}")
+          print(f"::set-output name=youtube_url::{video_url}")
+          EOF
+      
+      - name: 📧 Send Notification Email (FREE via GitHub)
+        if: success()
+        run: |
+          echo "✅ VIDÉO PUBLIÉE AVEC SUCCÈS!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📺 YouTube: Vérifiez votre chaîne" >> $GITHUB_STEP_SUMMARY
+          echo "💾 Google Drive: Vidéo sauvegardée" >> $GITHUB_STEP_SUMMARY
+          echo "🕐 Date: $(date)" >> $GITHUB_STEP_SUMMARY
+      
+      - name: ❌ Notification d'échec
+        if: failure()
+        run: |
+          echo "❌ ERREUR lors de la création/publication" >> $GITHUB_STEP_SUMMARY
+          echo "Vérifiez les logs ci-dessus" >> $GITHUB_STEP_SUMMARY
