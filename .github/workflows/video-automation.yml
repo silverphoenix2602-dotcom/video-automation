@@ -1,4 +1,4 @@
-name: 🎬 Création Vidéo Automatique
+name: 🎬 Création Vidéo Automatique (Version Universelle)
 
 on:
   schedule:
@@ -21,57 +21,99 @@ jobs:
       
       - name: 📦 Install dependencies
         run: |
-          pip install google-generativeai
-          pip install moviepy
           pip install requests
+          pip install moviepy
           pip install google-auth google-auth-oauthlib google-auth-httplib2
           pip install google-api-python-client
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
       
-      - name: 🤖 Generate Video Script with Gemini (FREE)
+      - name: 🤖 Generate Video Script with HuggingFace (FREE - Disponible partout!)
         id: generate_script
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
         run: |
           python << 'EOF'
-          import google.generativeai as genai
+          import requests
           import json
+          import random
           import os
           
-          # Configuration Gemini (GRATUIT)
-          genai.configure(api_key=os.environ['GEMINI_API_KEY'])
-          model = genai.GenerativeModel('gemini-pro')
+          # Liste de sujets prédéfinis (si l'API échoue)
+          fallback_topics = [
+              {
+                  "titre": "Le paradoxe de Fermi expliqué simplement",
+                  "script": "Pourquoi n'avons-nous jamais rencontré d'extraterrestres ? C'est le paradoxe de Fermi. Avec des milliards de galaxies, la vie devrait être partout. Pourtant, silence radio complet. Trois théories : soit nous sommes seuls, soit les civilisations s'autodétruisent, soit elles nous évitent volontairement. La vérité reste un mystère fascinant.",
+                  "description": "Découvrez le paradoxe de Fermi et pourquoi nous n'avons jamais rencontré d'extraterrestres malgré les milliards de galaxies.",
+                  "tags": "science, espace, astronomie, fermi, extraterrestres",
+                  "hashtags": "#Science #Espace #Astronomie #Paradoxe"
+              },
+              {
+                  "titre": "Comment fonctionne vraiment ChatGPT ?",
+                  "script": "ChatGPT n'est pas magique, c'est des mathématiques géantes ! Il prédit le mot suivant dans une phrase, encore et encore. Entraîné sur des milliards de textes, il a appris les patterns du langage humain. C'est comme un autocomplete surpuissant qui comprend le contexte. Fascinant et un peu effrayant à la fois !",
+                  "description": "Comprendre comment ChatGPT fonctionne réellement : de simples prédictions de mots transformées en IA conversationnelle.",
+                  "tags": "IA, ChatGPT, technologie, intelligence artificielle, machine learning",
+                  "hashtags": "#IA #ChatGPT #Tech #AI"
+              },
+              {
+                  "titre": "Le secret des centenaires d'Okinawa",
+                  "script": "À Okinawa au Japon, les gens vivent régulièrement plus de 100 ans. Leur secret ? Le concept 'Hara Hachi Bu' : manger jusqu'à 80% de satiété. Ils consument aussi beaucoup de patates douces, marchent quotidiennement et gardent un but de vie fort appelé 'Ikigai'. Simple mais efficace : modération et purpose.",
+                  "description": "Découvrez les secrets de longévité des centenaires d'Okinawa : alimentation, mouvement et philosophie de vie.",
+                  "tags": "santé, longévité, Okinawa, bien-être, nutrition",
+                  "hashtags": "#Santé #Longévité #BienÊtre #Japon"
+              },
+              {
+                  "titre": "Pourquoi on oublie ses rêves au réveil ?",
+                  "script": "Vous faites des rêves incroyables mais 90% disparaissent en quelques minutes ? C'est normal ! Pendant le sommeil, le cerveau désactive une partie de la mémoire pour se concentrer sur le repos. Au réveil, la chimie cérébrale change brutalement et les souvenirs de rêves s'évaporent. Astuce : notez-les immédiatement !",
+                  "description": "Explication scientifique de pourquoi nous oublions nos rêves et comment mieux s'en souvenir.",
+                  "tags": "science, sommeil, rêves, cerveau, neuroscience",
+                  "hashtags": "#Science #Sommeil #Rêves #Cerveau"
+              },
+              {
+                  "titre": "La règle des 2 minutes qui change tout",
+                  "script": "Voici la règle qui booste la productivité : si une tâche prend moins de 2 minutes, fais-la immédiatement. Répondre à un email, ranger un objet, noter une idée. Ces micro-tâches s'accumulent et créent de la procrastination. En les faisant sur-le-champ, votre charge mentale diminue drastiquement. Simple mais puissant !",
+                  "description": "La règle des 2 minutes pour augmenter votre productivité et réduire la procrastination au quotidien.",
+                  "tags": "productivité, organisation, développement personnel, efficacité",
+                  "hashtags": "#Productivité #DevPerso #Motivation #Organisation"
+              }
+          ]
           
-          # Générer le script
-          prompt = """
-          Génère un script de vidéo éducative virale de 35 secondes.
-          Sujet : Technologie fascinante ou fait scientifique incroyable
+          # Choisir un sujet aléatoire
+          data = random.choice(fallback_topics)
           
-          Retourne UNIQUEMENT un JSON valide :
-          {
-            "titre": "Titre accrocheur max 60 caractères",
-            "script": "Le script complet à lire (35 secondes)",
-            "description": "Description YouTube avec mots-clés SEO",
-            "tags": "tag1, tag2, tag3, tag4, tag5",
-            "hashtags": "#tech #science #education"
-          }
-          """
+          # Optionnel : Essayer l'API HuggingFace (gratuit)
+          try:
+              if 'HUGGINGFACE_TOKEN' in os.environ:
+                  headers = {"Authorization": f"Bearer {os.environ['HUGGINGFACE_TOKEN']}"}
+                  API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+                  
+                  prompt = """Génère un script de vidéo éducative virale de 35 secondes.
+                  Format JSON uniquement :
+                  {"titre": "...", "script": "...", "description": "...", "tags": "...", "hashtags": "..."}"""
+                  
+                  response = requests.post(
+                      API_URL, 
+                      headers=headers, 
+                      json={"inputs": prompt},
+                      timeout=30
+                  )
+                  
+                  if response.status_code == 200:
+                      result = response.json()[0]['generated_text']
+                      # Essayer de parser le JSON
+                      import re
+                      json_match = re.search(r'\{.*\}', result, re.DOTALL)
+                      if json_match:
+                          data = json.loads(json_match.group())
+          except Exception as e:
+              print(f"ℹ️ Utilisation d'un sujet prédéfini (API non disponible: {e})")
           
-          response = model.generate_content(prompt)
-          script_data = response.text
-          
-          # Nettoyer et parser le JSON
-          script_data = script_data.replace('```json', '').replace('```', '').strip()
-          data = json.loads(script_data)
-          
-          # Sauvegarder dans un fichier
+          # Sauvegarder
           with open('script.json', 'w', encoding='utf-8') as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
           
-          # Outputs pour GitHub Actions
-          print(f"::set-output name=titre::{data['titre']}")
-          print(f"::set-output name=script::{data['script']}")
-          
-          print("✅ Script généré avec succès!")
+          print(f"✅ Script sélectionné: {data['titre']}")
+          print(f"Script: {data['script'][:100]}...")
           EOF
       
       - name: 🎬 Create Video with MoviePy (FREE)
@@ -79,48 +121,83 @@ jobs:
           python << 'EOF'
           from moviepy.editor import *
           import json
+          import textwrap
           
           # Charger le script
           with open('script.json', 'r', encoding='utf-8') as f:
               data = json.load(f)
           
-          script_text = data['script']
+          # Paramètres
+          WIDTH, HEIGHT = 1920, 1080
+          DURATION = 35
           
-          # Créer une vidéo simple avec texte
-          # Fond noir
-          background = ColorClip(size=(1920, 1080), color=(0, 0, 0), duration=35)
+          # Fond dégradé (plus joli qu'un fond noir)
+          from moviepy.video.fx.all import colorx
+          background = ColorClip(size=(WIDTH, HEIGHT), color=(20, 20, 40), duration=DURATION)
           
-          # Texte principal
-          txt_clip = TextClip(
-              script_text,
-              fontsize=50,
-              color='white',
-              font='Arial-Bold',
-              size=(1600, None),
-              method='caption',
-              align='center'
-          ).set_position('center').set_duration(35)
-          
-          # Titre en haut
+          # Titre en haut (5 premières secondes)
           title_clip = TextClip(
               data['titre'],
-              fontsize=70,
-              color='yellow',
+              fontsize=80,
+              color='#FFD700',  # Or
               font='Arial-Bold',
-              size=(1600, None),
+              size=(WIDTH - 200, None),
+              method='caption',
+              align='center',
+              stroke_color='black',
+              stroke_width=3
+          ).set_position(('center', 150)).set_duration(5).fadeout(0.5)
+          
+          # Script principal (texte défilant)
+          script_text = data['script']
+          
+          # Découper le texte en lignes
+          lines = textwrap.wrap(script_text, width=50)
+          
+          # Créer plusieurs clips de texte qui apparaissent progressivement
+          text_clips = []
+          words = script_text.split()
+          words_per_second = len(words) / DURATION
+          
+          script_clip = TextClip(
+              script_text,
+              fontsize=55,
+              color='white',
+              font='Arial',
+              size=(WIDTH - 300, HEIGHT - 400),
+              method='caption',
+              align='center',
+              stroke_color='black',
+              stroke_width=2
+          ).set_position('center').set_duration(DURATION).fadein(0.5)
+          
+          # Hashtags en bas (dernières 5 secondes)
+          hashtag_clip = TextClip(
+              data['hashtags'],
+              fontsize=45,
+              color='#00D9FF',  # Bleu clair
+              font='Arial-Bold',
+              size=(WIDTH - 200, None),
               method='caption',
               align='center'
-          ).set_position(('center', 100)).set_duration(5)
+          ).set_position(('center', HEIGHT - 150)).set_start(30).set_duration(5).fadein(0.3)
           
           # Composer la vidéo
-          video = CompositeVideoClip([background, txt_clip, title_clip])
+          video = CompositeVideoClip([
+              background,
+              title_clip,
+              script_clip,
+              hashtag_clip
+          ])
           
           # Exporter
           video.write_videofile(
               'video_output.mp4',
               fps=24,
               codec='libx264',
-              audio=False
+              audio=False,
+              preset='ultrafast',
+              threads=4
           )
           
           print("✅ Vidéo créée avec succès!")
@@ -138,20 +215,23 @@ jobs:
           import os
           from datetime import datetime
           
-          # Credentials Google Drive
+          # Credentials
           credentials_info = json.loads(os.environ['GDRIVE_CREDENTIALS'])
           credentials = service_account.Credentials.from_service_account_info(
               credentials_info,
               scopes=['https://www.googleapis.com/auth/drive.file']
           )
           
-          # Service Drive
           service = build('drive', 'v3', credentials=credentials)
           
           # Upload
           timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+          
+          with open('script.json', 'r', encoding='utf-8') as f:
+              script_data = json.load(f)
+          
           file_metadata = {
-              'name': f'video_auto_{timestamp}.mp4',
+              'name': f"{script_data['titre'][:30]}_{timestamp}.mp4",
               'mimeType': 'video/mp4'
           }
           
@@ -163,8 +243,8 @@ jobs:
               fields='id,webViewLink'
           ).execute()
           
-          print(f"✅ Vidéo uploadée sur Google Drive: {file.get('webViewLink')}")
-          print(f"::set-output name=drive_link::{file.get('webViewLink')}")
+          print(f"✅ Vidéo uploadée sur Google Drive!")
+          print(f"Link: {file.get('webViewLink')}")
           EOF
       
       - name: 📺 Upload to YouTube (FREE)
@@ -177,31 +257,31 @@ jobs:
           from googleapiclient.http import MediaFileUpload
           import json
           import os
+          from datetime import datetime
           
-          # Charger le script pour métadonnées
+          # Charger script
           with open('script.json', 'r', encoding='utf-8') as f:
               data = json.load(f)
           
-          # Credentials YouTube
+          # Credentials
           credentials_info = json.loads(os.environ['YOUTUBE_CREDENTIALS'])
           credentials = service_account.Credentials.from_service_account_info(
               credentials_info,
               scopes=['https://www.googleapis.com/auth/youtube.upload']
           )
           
-          # Service YouTube
           youtube = build('youtube', 'v3', credentials=credentials)
           
-          # Métadonnées vidéo
+          # Métadonnées
           body = {
               'snippet': {
                   'title': data['titre'],
-                  'description': f"{data['description']}\n\n{data['hashtags']}\n\n🤖 Vidéo générée automatiquement par IA",
+                  'description': f"{data['description']}\n\n{data['hashtags']}\n\n🤖 Vidéo générée automatiquement\n📅 {datetime.now().strftime('%d/%m/%Y')}",
                   'tags': data['tags'].split(', '),
-                  'categoryId': '28'  # Science & Technology
+                  'categoryId': '27'  # Education
               },
               'status': {
-                  'privacyStatus': 'public',  # ou 'unlisted' pour tester
+                  'privacyStatus': 'public',
                   'selfDeclaredMadeForKids': False
               }
           }
@@ -216,25 +296,45 @@ jobs:
           )
           
           response = request.execute()
-          
           video_id = response['id']
           video_url = f"https://www.youtube.com/watch?v={video_id}"
           
-          print(f"✅ Vidéo publiée sur YouTube: {video_url}")
-          print(f"::set-output name=youtube_url::{video_url}")
+          print(f"✅ Vidéo publiée sur YouTube!")
+          print(f"URL: {video_url}")
+          
+          # Sauvegarder l'URL pour le summary
+          with open('youtube_url.txt', 'w') as f:
+              f.write(video_url)
           EOF
       
-      - name: 📧 Send Notification Email (FREE via GitHub)
+      - name: 📊 Résumé de l'exécution
         if: success()
         run: |
-          echo "✅ VIDÉO PUBLIÉE AVEC SUCCÈS!" >> $GITHUB_STEP_SUMMARY
+          echo "# ✅ VIDÉO PUBLIÉE AVEC SUCCÈS! 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📺 YouTube: Vérifiez votre chaîne" >> $GITHUB_STEP_SUMMARY
-          echo "💾 Google Drive: Vidéo sauvegardée" >> $GITHUB_STEP_SUMMARY
-          echo "🕐 Date: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "## 📺 YouTube" >> $GITHUB_STEP_SUMMARY
+          if [ -f youtube_url.txt ]; then
+            echo "URL: $(cat youtube_url.txt)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📝 Script généré" >> $GITHUB_STEP_SUMMARY
+          cat script.json >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🕐 Informations" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Prochaine exécution: Demain à 10h UTC" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "🤖 Automatisation by GitHub Actions" >> $GITHUB_STEP_SUMMARY
       
       - name: ❌ Notification d'échec
         if: failure()
         run: |
-          echo "❌ ERREUR lors de la création/publication" >> $GITHUB_STEP_SUMMARY
-          echo "Vérifiez les logs ci-dessus" >> $GITHUB_STEP_SUMMARY
+          echo "# ❌ ERREUR lors de la création/publication" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Consultez les logs ci-dessus pour identifier le problème." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Problèmes courants:" >> $GITHUB_STEP_SUMMARY
+          echo "- Vérifiez que tous les secrets sont bien configurés" >> $GITHUB_STEP_SUMMARY
+          echo "- Vérifiez les permissions du Service Account Google" >> $GITHUB_STEP_SUMMARY
+          echo "- Vérifiez les quotas API YouTube" >> $GITHUB_STEP_SUMMARY
